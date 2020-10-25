@@ -1,0 +1,61 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": {
+      "type": "String"
+    }
+  },
+  "variables": {
+    "cosmosDbDatabaseAccountName": "[concat('blog-itest-demo-', parameters('environmentName'))]",
+    "testDatabaseName": "testDatabase"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.DocumentDB/databaseAccounts",
+      "apiVersion": "2020-06-01-preview",
+      "name": "[variables('cosmosDbDatabaseAccountName')]",
+      "location": "[resourceGroup().location]",
+      "kind": "GlobalDocumentDB",
+      "properties": {
+        "databaseAccountOfferType": "Standard",
+        "consistencyPolicy": {
+          "defaultConsistencyLevel": "Session",
+          "maxIntervalInSeconds": 5,
+          "maxStalenessPrefix": 100
+        }
+      }
+    },
+    {
+      "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases",
+      "apiVersion": "2020-06-01-preview",
+      "name": "[concat(variables('cosmosDbDatabaseAccountName'), '/', variables('testDatabaseName'))]",
+      "dependsOn": [
+        "[variables('cosmosDbDatabaseAccountName')]"
+      ],
+      "properties": {
+        "resource": {
+          "id": "[variables('testDatabaseName')]"
+        },
+        "options": {}
+      }
+    }
+  ],
+  "outputs": {
+    "EndpointUrl": {
+      "condition": "[equals('test', parameters('environmentName'))]",
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosDbDatabaseAccountName')), '2020-06-01-preview').documentEndpoint]"
+    },
+    "AuthorizationKey": {
+      "condition": "[equals('test', parameters('environmentName'))]",
+      "type": "string",
+      "value": "[listKeys(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosDbDatabaseAccountName')), '2020-06-01-preview').primaryMasterKey]"
+    },
+    "RecipeDatabaseName": {
+      "condition": "[equals('test', parameters('environmentName'))]",
+      "type": "string",
+      "value": "[variables('testDatabaseName')]"
+    }
+  }
+}

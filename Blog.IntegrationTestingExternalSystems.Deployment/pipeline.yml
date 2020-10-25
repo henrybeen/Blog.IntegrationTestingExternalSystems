@@ -1,0 +1,53 @@
+﻿pool: 'SelfHostedWindows'
+
+trigger:
+- master
+
+variables:
+  BuildConfiguration: 'Release'
+  ServiceConnectionName: 'CDforFunctionsX'
+  ResourceGroupName: 'Blog.IntegrationTestingExternalSystems'
+  ResourceGroupLocation: 'West Europe'
+  EnvironmentName: 'test'
+
+steps:
+- task: AzureResourceGroupDeployment@2
+  displayName: 'ARM template deployment'
+  inputs:
+    azureSubscription: $(ServiceConnectionName)
+    resourceGroupName: $(ResourceGroupName)
+    location: $(ResourceGroupLocation)
+    csmFile: '$(System.DefaultWorkingDirectory)/Blog.IntegrationTestingExternalSystems.Deployment/armtemplate.json'
+    overrideParameters: '-environmentName "$(EnvironmentName)"'
+    deploymentMode: 'Incremental'
+
+- task: keesschollaart.arm-outputs.arm-outputs.ARM Outputs@5
+  displayName: 'Fetch ARM Outputs'
+  inputs:
+    ConnectedServiceNameARM: $(ServiceConnectionName)
+    resourceGroupName:  $(ResourceGroupName)
+
+- task: qetza.replacetokens.replacetokens-task.replacetokens@3
+  displayName: 'Replace tokens in Blog.IntegrationTestingExternalSystems.IntegrationTest.runsettings'
+  inputs:
+    targetFiles: '$(System.DefaultWorkingDirectory)/Blog.IntegrationTestingExternalSystems.IntegrationTest/Blog.IntegrationTestingExternalSystems.IntegrationTest.runsettings'
+
+- task: UseDotNet@2
+  inputs:
+    packageType: 'sdk'
+    version: '3.1.403'
+
+- task: DotNetCoreCLI@2
+  displayName: 'Compile sources'
+  inputs:
+    command: 'build'
+    projects: '**/*.csproj'
+    arguments: '--configuration $(BuildConfiguration)'
+
+- task: DotNetCoreCLI@2
+  displayName: 'Run integration tests'
+  inputs:
+    command: 'custom'
+    custom: 'vstest'
+    projects: '$(Build.SourcesDirectory)/Blog.IntegrationTestingExternalSystems.IntegrationTest\bin\$(BuildConfiguration)\netcoreapp3.1\Blog.IntegrationTestingExternalSystems.IntegrationTest.dll'
+    arguments: '--settings:$(Build.SourcesDirectory)/Blog.IntegrationTestingExternalSystems.IntegrationTest/Blog.IntegrationTestingExternalSystems.IntegrationTest.runsettings'
